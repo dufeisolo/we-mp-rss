@@ -339,6 +339,16 @@ async def get_featured_article_task_status(
         )
     return success_response(task)
 
+def get_gather_model(mp):
+    """根据公众号类型获取对应的采集器实例"""
+    if str(getattr(mp, 'id', '') or '').startswith('MP_WXS_') and getattr(mp, 'id', '') != 'MP_WXS_FEATURED_ARTICLES':
+        from core.wx.model.weread_mp import MpsWereadMP
+        weread_wx = MpsWereadMP()
+        weread_wx._load_weread_auth()
+        return weread_wx
+    from core.wx import WxGather
+    return WxGather().Model()
+
 @router.get("/update/{mp_id}", summary="更新公众号文章")
 async def update_mps(
      mp_id: str,
@@ -368,8 +378,7 @@ async def update_mps(
                 )
         # 同步采集，等待结果返回；失败时把真实原因透出给前端，
         # 避免「异步线程 + 异常被吞」导致前端只看到“刷新成功”但实际 0 篇入库。
-        from core.wx import WxGather
-        wx = WxGather().Model()
+        wx = get_gather_model(mp)
         try:
             wx.get_Articles(
                 mp.faker_id,
@@ -381,10 +390,12 @@ async def update_mps(
             )
         except Exception as e:
             err = str(e)
-            # 微信读书登录态失效等，给出可操作的明确提示
+            # 微信读书登录态失效或接口受限等，给出可操作的明确提示
             hint = ""
             if any(k in err for k in ("401", "鉴权", "-2013", "-2012", "登录超时", "登录态")):
                 hint = " 微信读书 Cookie 已失效，请到「微信读书管理」页重新扫码授权或更新 Cookie。"
+            elif "-2041" in err:
+                hint = " 微信读书历史分页接口已被官方限制，建议使用定时增量巡检或「添加精选文章」直接抓取。"
             print(f"更新公众号文章失败 [{mp.mp_name}]: {err}")
             return error_response(
                 code=50002,
