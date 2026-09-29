@@ -287,11 +287,31 @@ async def create_message_task(
         db.add(db_task)
         db.commit()
         db.refresh(db_task)
+        try:
+            from jobs.mps import reload_job
+            reload_job()
+            from jobs.cascade_task_dispatcher import cascade_schedule_service
+            cascade_schedule_service.reload()
+        except Exception as err:
+            print_error(f"创建消息任务后重载调度任务失败: {err}")
         return success_response(data=db_task)
     except Exception as e:
         db.rollback()
         print_error(e)
         return error_response(code=500, message=str(e))
+
+@router.put("/job/fresh",summary="重载任务")
+async def fresh_message_task(
+     current_user: dict = Depends(get_current_user_or_ak)
+):
+    """
+    重载任务
+    """
+    from jobs.mps import reload_job
+    reload_job()
+    from jobs.cascade_task_dispatcher import cascade_schedule_service
+    cascade_schedule_service.reload()
+    return success_response(message="任务已经重载成功")
 
 @router.put("/{task_id}", summary="更新消息任务")
 async def update_message_task(
@@ -340,22 +360,17 @@ async def update_message_task(
             db_task.cookies = task_data.cookies
         db.commit()
         db.refresh(db_task)
+        try:
+            from jobs.mps import reload_job
+            reload_job()
+            from jobs.cascade_task_dispatcher import cascade_schedule_service
+            cascade_schedule_service.reload()
+        except Exception as err:
+            print_error(f"更新消息任务后重载调度任务失败: {err}")
         return success_response(data=db_task)
     except Exception as e:
         db.rollback()
         return error_response(code=500, message=str(e))
-@router.put("/job/fresh",summary="重载任务")
-async def fresh_message_task(
-     current_user: dict = Depends(get_current_user_or_ak)
-):
-    """
-    重载任务
-    """
-    from jobs.mps import reload_job
-    reload_job()
-    from jobs.cascade_task_dispatcher import cascade_schedule_service
-    cascade_schedule_service.reload()
-    return success_response(message="任务已经重载成功")
 @router.delete("/{task_id}",summary="删除消息任务")
 async def delete_message_task(
     task_id: str,
@@ -382,6 +397,13 @@ async def delete_message_task(
         
         db.delete(db_task)
         db.commit()
+        try:
+            from jobs.mps import reload_job
+            reload_job()
+            from jobs.cascade_task_dispatcher import cascade_schedule_service
+            cascade_schedule_service.reload()
+        except Exception as err:
+            print_error(f"删除消息任务后重载调度任务失败: {err}")
         return success_response(message="Message task deleted successfully")
     except Exception as e:
         db.rollback()
