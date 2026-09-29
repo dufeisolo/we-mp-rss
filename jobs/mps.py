@@ -299,6 +299,7 @@ def start_job(job_id:str=None):
     tasks=get_message_task(job_id)
     if not tasks:
         print("没有任务")
+        scheduler.start()
         return
     tag="定时采集"
     for task in tasks:
